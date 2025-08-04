@@ -66,6 +66,97 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
+def detect_column_mapping(data):
+    """
+    Intelligently detect column mappings for customer segmentation analysis
+    """
+    columns = data.columns.tolist()
+    column_mapping = {
+        'suggested_mappings': {},
+        'confidence_scores': {}
+    }
+    
+    # Define keywords for different types of analysis
+    mapping_keywords = {
+        'financial_capability': {
+            'monthly_income': ['income', 'salary', 'monthly_income', 'gross_income', 'net_income', 'earnings', 'revenue'],
+            'credit_score': ['credit_score', 'credit', 'score', 'credit_rating', 'fico', 'creditworthiness'],
+            'customer_id': ['customer_id', 'id', 'customer', 'client_id', 'account_id', 'user_id']
+        },
+        'financial_hardship': {
+            'debt_to_income_ratio': ['debt_to_income', 'debt_ratio', 'dti', 'debt_income_ratio', 'leverage'],
+            'payment_delays': ['payment_delays', 'late_payments', 'delays', 'delinquency', 'overdue']
+        },
+        'gambling_behavior': {
+            'gambling_frequency': ['gambling', 'casino', 'betting', 'gaming', 'lottery'],
+            'cash_withdrawals': ['cash', 'withdrawal', 'atm', 'cash_advance']
+        }
+    }
+    
+    # Score columns based on keyword matching
+    for analysis_type, features in mapping_keywords.items():
+        column_mapping['suggested_mappings'][analysis_type] = {}
+        
+        for feature, keywords in features.items():
+            best_match = None
+            best_score = 0
+            
+            for col in columns:
+                col_lower = col.lower().replace('_', ' ').replace('-', ' ')
+                score = 0
+                
+                # Exact match gets highest score
+                if col_lower in [kw.replace('_', ' ') for kw in keywords]:
+                    score = 1.0
+                else:
+                    # Partial match scoring
+                    for keyword in keywords:
+                        keyword_lower = keyword.replace('_', ' ')
+                        if keyword_lower in col_lower:
+                            score = max(score, 0.8)
+                        elif any(word in col_lower for word in keyword_lower.split()):
+                            score = max(score, 0.6)
+                
+                if score > best_score:
+                    best_score = score
+                    best_match = col
+            
+            if best_match and best_score > 0.5:
+                column_mapping['suggested_mappings'][analysis_type][feature] = best_match
+                column_mapping['confidence_scores'][f"{analysis_type}_{feature}"] = best_score
+    
+    return column_mapping
+
+def apply_column_mapping(data, auto_mapping, manual_mapping):
+    """
+    Apply column mapping to prepare data for analysis
+    """
+    mapped_data = data.copy()
+    mapping_applied = {}
+    
+    # Priority: manual mapping > auto mapping
+    all_mappings = {}
+    
+    # Add auto mappings
+    for analysis_type, features in auto_mapping['suggested_mappings'].items():
+        for feature, column in features.items():
+            all_mappings[feature] = column
+    
+    # Override with manual mappings
+    all_mappings.update(manual_mapping)
+    
+    # Rename columns according to mapping
+    rename_dict = {}
+    for target_name, source_column in all_mappings.items():
+        if source_column in mapped_data.columns:
+            rename_dict[source_column] = target_name
+            mapping_applied[target_name] = source_column
+    
+    if rename_dict:
+        mapped_data = mapped_data.rename(columns=rename_dict)
+    
+    return mapped_data, mapping_applied
+
 def main():
     """Main Streamlit application"""
     
@@ -209,10 +300,14 @@ def main():
                         st.success(f"✅ Dataset loaded successfully! ({file_extension.upper()} format)")
                         st.info(f"📊 Dataset shape: {sample_data.shape[0]} rows × {sample_data.shape[1]} columns")
                         
-                        # Show column info
-                        with st.expander("📋 Dataset Preview", expanded=False):
+                        # Intelligent column mapping
+                        column_mapping = detect_column_mapping(sample_data)
+                        
+                        # Show column info and mapping suggestions
+                        with st.expander("📋 Dataset Preview & Column Mapping", expanded=True):
                             st.write("**First 5 rows:**")
                             st.dataframe(sample_data.head())
+                            
                             st.write("**Column Information:**")
                             col_info = pd.DataFrame({
                                 'Column': sample_data.columns,
@@ -220,6 +315,65 @@ def main():
                                 'Non-Null Count': sample_data.count(),
                                 'Null Count': sample_data.isnull().sum()
                             })
+                            st.dataframe(col_info)
+                            
+                            # Show intelligent mapping suggestions
+                            st.write("**🤖 Intelligent Column Mapping Suggestions:**")
+                            if column_mapping['suggested_mappings']:
+                                for analysis_type, suggestions in column_mapping['suggested_mappings'].items():
+                                    if suggestions:
+                                        st.write(f"**{analysis_type.replace('_', ' ').title()}:**")
+                                        for feature, column in suggestions.items():
+                                            confidence = column_mapping['confidence_scores'].get(f"{analysis_type}_{feature}", 0)
+                                            confidence_emoji = "🟢" if confidence > 0.8 else "🟡" if confidence > 0.5 else "🔴"
+                                            st.write(f"  {confidence_emoji} {feature}: `{column}` (confidence: {confidence:.1%})")
+                            else:
+                                st.info("💡 No automatic column mapping detected. The system will use available columns adaptively.")
+                            
+                            # Allow manual column mapping override
+                            st.write("**🔧 Manual Column Mapping Override (Optional):**")
+                            manual_mapping = {}
+                            
+                            col_a, col_b = st.columns(2)
+                            with col_a:
+                                manual_mapping['customer_id'] = st.selectbox(
+                                    "Customer ID Column:",
+                                    ["Auto-detect"] + list(sample_data.columns),
+                                    help="Select the column that contains unique customer identifiers"
+                                )
+                                manual_mapping['monthly_income'] = st.selectbox(
+                                    "Monthly Income Column:",
+                                    ["Auto-detect"] + list(sample_data.columns),
+                                    help="Select the column that contains customer income data"
+                                )
+                                manual_mapping['credit_score'] = st.selectbox(
+                                    "Credit Score Column:",
+                                    ["Auto-detect"] + list(sample_data.columns),
+                                    help="Select the column that contains credit score data"
+                                )
+                            
+                            with col_b:
+                                manual_mapping['debt_to_income_ratio'] = st.selectbox(
+                                    "Debt-to-Income Ratio:",
+                                    ["Auto-detect"] + list(sample_data.columns),
+                                    help="Select the column that contains debt ratio data"
+                                )
+                                manual_mapping['payment_delays'] = st.selectbox(
+                                    "Payment Delays:",
+                                    ["Auto-detect"] + list(sample_data.columns),
+                                    help="Select the column that contains payment delay information"
+                                )
+                                manual_mapping['transaction_frequency'] = st.selectbox(
+                                    "Transaction Frequency:",
+                                    ["Auto-detect"] + list(sample_data.columns),
+                                    help="Select the column that contains transaction frequency data"
+                                )
+                            
+                            # Store mapping in session state
+                            st.session_state.column_mapping = {
+                                'auto': column_mapping,
+                                'manual': {k: v for k, v in manual_mapping.items() if v != "Auto-detect"}
+                            }
                             st.dataframe(col_info)
                         
                         # Validate required columns
@@ -298,6 +452,24 @@ def main():
                     
                     # Run the actual workflow with async
                     if pd and hasattr(sample_data, 'shape'):
+                        # Apply column mapping if uploaded data
+                        if data_source == "📂 Upload Your Dataset" and hasattr(st.session_state, 'column_mapping'):
+                            status_text.text("🔄 Applying column mapping...")
+                            try:
+                                mapped_data, mapping_applied = apply_column_mapping(
+                                    sample_data, 
+                                    st.session_state.column_mapping['auto'],
+                                    st.session_state.column_mapping['manual']
+                                )
+                                sample_data = mapped_data
+                                
+                                if mapping_applied:
+                                    st.info(f"✅ Applied column mapping: {mapping_applied}")
+                                else:
+                                    st.info("💡 Using original column names - no mapping needed")
+                            except Exception as e:
+                                st.warning(f"⚠️ Column mapping failed: {e}. Using original columns.")
+                        
                         # Create new event loop for the async workflow
                         loop = asyncio.new_event_loop()
                         asyncio.set_event_loop(loop)
@@ -360,6 +532,8 @@ def main():
         - Gambling Behavior Analysis
         - Cross-Model Correlation Analysis
         - Comprehensive Reporting
+        - 🆕 Intelligent Column Mapping
+        - 🆕 Data-Adaptive Analysis
         
         **📁 Supported File Formats:**
         - CSV files (.csv)
@@ -368,13 +542,35 @@ def main():
         - Headers in first row
         """)
         
-        # Show upload status if in upload mode
-        if data_source == "📂 Upload Your Dataset":
-            if uploaded_file is not None:
-                file_type = uploaded_file.name.split('.')[-1].upper()
-                st.success(f"✅ {file_type} File Ready for Analysis")
-            else:
-                st.warning("⏳ Awaiting File Upload")
+        # Show data-specific recommendations if file is uploaded
+        if data_source == "📂 Upload Your Dataset" and uploaded_file is not None:
+            file_type = uploaded_file.name.split('.')[-1].upper()
+            st.success(f"✅ {file_type} File Ready for Analysis")
+            
+            # Show analysis recommendations based on uploaded data
+            if hasattr(st.session_state, 'column_mapping'):
+                mapping = st.session_state.column_mapping['auto']
+                recommendations = []
+                
+                # Check what analysis types are possible
+                if mapping['suggested_mappings'].get('financial_capability'):
+                    recommendations.append("💰 Financial Capability Analysis")
+                if mapping['suggested_mappings'].get('financial_hardship'):
+                    recommendations.append("⚠️ Financial Hardship Assessment")
+                if mapping['suggested_mappings'].get('gambling_behavior'):
+                    recommendations.append("🎰 Gambling Behavior Analysis")
+                
+                if recommendations:
+                    st.info("🎯 **Recommended Analysis Types:**")
+                    for rec in recommendations:
+                        st.write(f"  • {rec}")
+                else:
+                    st.info("💡 **General Analysis Available:** The system will adapt to your data structure")
+        
+        elif data_source == "📂 Upload Your Dataset":
+            st.warning("⏳ Awaiting File Upload")
+        else:
+            st.info("🎲 Sample Data Mode Active")
     
     # Display results if available
     if st.session_state.analysis_results:
