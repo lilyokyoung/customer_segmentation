@@ -399,10 +399,11 @@ def main():
             
             # Dynamic Selection
             st.sidebar.markdown("**Select Dynamics for Analysis:**")
+            st.sidebar.info("💡 Tip: Uncheck dynamics you don't want to analyze. Only selected dynamics will be processed.")
             dynamics_selection = {
-                'financial_capability': st.sidebar.checkbox("💰 Financial Capability", value=True),
-                'financial_hardship': st.sidebar.checkbox("⚠️ Financial Hardship", value=True),
-                'gambling_behavior': st.sidebar.checkbox("🎰 Gambling Behaviour", value=True),
+                'financial_capability': st.sidebar.checkbox("💰 Financial Capability", value=False),
+                'financial_hardship': st.sidebar.checkbox("⚠️ Financial Hardship", value=False),
+                'gambling_behavior': st.sidebar.checkbox("🎰 Gambling Behaviour", value=False),
                 'demographics': st.sidebar.checkbox("👥 Demographics", value=True)
             }
             
@@ -426,12 +427,15 @@ def main():
                 )
                 
                 # Store configuration in session state
-                st.session_state.analysis_config = {
-                    'dynamics_selection': dynamics_selection,
-                    'analysis_strategy': analysis_strategy,
-                    'enable_regression': enable_regression,
-                    'regression_approach': regression_approach
-                }
+                if any(dynamics_selection.values()):
+                    st.session_state.analysis_config = {
+                        'dynamics_selection': dynamics_selection,
+                        'analysis_strategy': analysis_strategy,
+                        'enable_regression': enable_regression,
+                        'regression_approach': regression_approach
+                    }
+                else:
+                    st.sidebar.warning("⚠️ Please select at least one dynamic for analysis")
     
     # Sample data configuration (only show if generating sample data)
     if data_source == "🎲 Generate Sample Data":
