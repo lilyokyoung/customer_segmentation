@@ -6,17 +6,164 @@ import asyncio
 import logging
 from pathlib import Path
 from typing import Dict, List, Any, Tuple
-import yaml
 import pandas as pd
 import numpy as np
 from datetime import datetime
 
-from agents.segmentation_agent import CustomerSegmentationAgent
-from pipeline.data_pipeline import DataPipeline
-from models.model_manager import ModelManager
-from utils.logger import setup_logger
-from utils.correlation_analyzer import CorrelationAnalyzer
-from utils.summary_reporter import SummaryReporter
+# Handle optional dependencies gracefully
+try:
+    import yaml
+except ImportError:
+    print("Warning: PyYAML not installed. Using default configuration.")
+    yaml = None
+
+try:
+    from agents.segmentation_agent import CustomerSegmentationAgent
+except ImportError:
+    print("Warning: CustomerSegmentationAgent not found. Using mock agent.")
+    CustomerSegmentationAgent = None
+
+try:
+    from pipeline.data_pipeline import DataPipeline
+except ImportError:
+    print("Warning: DataPipeline not found. Using basic data processing.")
+    DataPipeline = None
+
+try:
+    from models.model_manager import ModelManager
+except ImportError:
+    print("Warning: ModelManager not found. Using basic model management.")
+    ModelManager = None
+
+try:
+    from utils.logger import setup_logger
+except ImportError:
+    print("Warning: Custom logger not found. Using basic logging.")
+    def setup_logger(config):
+        logging.basicConfig(level=logging.INFO)
+        return logging.getLogger(__name__)
+
+try:
+    from utils.correlation_analyzer import CorrelationAnalyzer
+except ImportError:
+    print("Warning: CorrelationAnalyzer not found. Correlation analysis will be limited.")
+    CorrelationAnalyzer = None
+
+try:
+    from utils.summary_reporter import SummaryReporter
+except ImportError:
+    print("Warning: SummaryReporter not found. Summary reporting will be limited.")
+    SummaryReporter = None
+
+
+# Mock classes for graceful degradation
+class MockDataPipeline:
+    def __init__(self, config=None):
+        self.config = config or {}
+    
+    async def preprocess(self, data):
+        return data
+    
+    async def engineer_features(self, data):
+        return data
+    
+    async def create_sample_data(self, n_samples=1000):
+        # Create basic sample data for testing
+        if pd:
+            try:
+                import numpy as np
+                return pd.DataFrame({
+                    'customer_id': range(n_samples),
+                    'monthly_income': np.random.normal(5000, 1500, n_samples),
+                    'credit_score': np.random.normal(700, 100, n_samples),
+                    'debt_to_income_ratio': np.random.uniform(0.1, 0.8, n_samples),
+                })
+            except ImportError:
+                # Fallback without numpy
+                return pd.DataFrame({
+                    'customer_id': range(n_samples),
+                    'monthly_income': [5000] * n_samples,
+                    'credit_score': [700] * n_samples,
+                    'debt_to_income_ratio': [0.3] * n_samples,
+                })
+        else:
+            return {"message": "Sample data creation unavailable - pandas not installed"}
+
+
+class MockModelManager:
+    def __init__(self, config=None):
+        self.config = config or {}
+    
+    async def train_models(self, data):
+        return {}
+    
+    async def predict(self, data):
+        return {}
+
+
+class MockSegmentationAgent:
+    def __init__(self, config=None):
+        self.config = config or {}
+    
+    async def analyze_segments(self, predictions):
+        return {}
+    
+    async def segment_financial_capability(self, data):
+        return {"message": "Financial capability segmentation unavailable - mock mode"}
+    
+    async def segment_financial_hardship(self, data):
+        return {"message": "Financial hardship segmentation unavailable - mock mode"}
+    
+    async def segment_gambling_behavior(self, data):
+        return {"message": "Gambling behavior segmentation unavailable - mock mode"}
+
+
+class MockCorrelationAnalyzer:
+    def __init__(self):
+        pass
+    
+    def analyze_feature_correlations(self, data, prefix=""):
+        return {"message": "Feature correlation analysis unavailable - missing dependencies"}
+    
+    def analyze_target_correlations(self, data):
+        return {"message": "Target correlation analysis unavailable - missing dependencies"}
+    
+    def generate_correlation_insights(self, feature_corr, target_corr=None):
+        return {"message": "Correlation insights unavailable - missing dependencies"}
+    
+    def analyze_cross_correlations(self, data, predictions, prefix=""):
+        return {"message": "Cross-correlation analysis unavailable - missing dependencies"}
+    
+    def analyze_model_relationships(self, predictions, model_correlations=None, feature_model_correlations=None):
+        return {"message": "Model relationship analysis unavailable - missing dependencies"}
+
+
+class MockSummaryReporter:
+    def __init__(self):
+        pass
+    
+    def generate_dataset_summary(self, data):
+        return {"message": "Dataset summary unavailable - missing dependencies"}
+    
+    def generate_segmentation_summary(self, results):
+        return {"message": "Segmentation summary unavailable - missing dependencies"}
+    
+    def generate_correlation_summary(self, correlations, cross_model_results=None):
+        return {"message": "Correlation summary unavailable - missing dependencies"}
+    
+    def generate_performance_summary(self, results):
+        return {"message": "Performance summary unavailable - missing dependencies"}
+    
+    def generate_business_insights(self, dataset_summary=None, segmentation_summary=None, 
+                                 correlation_summary=None, *args):
+        return {"message": "Business insights unavailable - missing dependencies"}
+    
+    def generate_risk_assessment(self, segmentation_results=None, correlation_results=None, *args):
+        return {"message": "Risk assessment unavailable - missing dependencies"}
+    
+    def generate_executive_summary(self, dataset_summary=None, segmentation_summary=None, 
+                                 performance_summary=None, business_insights=None, *args):
+        return {"message": "Executive summary unavailable - missing dependencies"}
 
 
 class CustomerSegmentationOrchestrator:
@@ -28,16 +175,43 @@ class CustomerSegmentationOrchestrator:
     def __init__(self, config_path: str = "config/config.yaml"):
         """Initialize the orchestrator with configuration"""
         self.config = self._load_config(config_path)
+        
+        # Ensure we have a logging config
+        if not self.config or 'logging' not in self.config:
+            self.config = self._get_default_config()
+            
         self.logger = setup_logger(self.config['logging'])
         
-        # Initialize components
-        self.data_pipeline = DataPipeline(self.config['data'])
-        self.model_manager = ModelManager(self.config['models'])
-        self.agent = CustomerSegmentationAgent(self.config['agent'])
+        # Initialize components with error handling
+        try:
+            if DataPipeline:
+                self.data_pipeline = DataPipeline(self.config['data'])
+            else:
+                self.data_pipeline = MockDataPipeline()
+                
+            if ModelManager:
+                self.model_manager = ModelManager(self.config['models'])
+            else:
+                self.model_manager = MockModelManager()
+                
+            if CustomerSegmentationAgent:
+                self.agent = CustomerSegmentationAgent(self.config['agent'])
+            else:
+                self.agent = MockSegmentationAgent()
+        except Exception as e:
+            self.logger.warning(f"Using mock components due to import issues: {e}")
+            self.data_pipeline = MockDataPipeline()
+            self.model_manager = MockModelManager()
+            self.agent = MockSegmentationAgent()
         
         # Initialize analysis components
-        self.correlation_analyzer = CorrelationAnalyzer()
-        self.summary_reporter = SummaryReporter()
+        try:
+            self.correlation_analyzer = CorrelationAnalyzer() if CorrelationAnalyzer else MockCorrelationAnalyzer()
+            self.summary_reporter = SummaryReporter() if SummaryReporter else MockSummaryReporter()
+        except Exception as e:
+            self.logger.warning(f"Using mock analytics components: {e}")
+            self.correlation_analyzer = MockCorrelationAnalyzer()
+            self.summary_reporter = MockSummaryReporter()
         
         # Store analysis results
         self.analysis_results = {}
@@ -45,10 +219,18 @@ class CustomerSegmentationOrchestrator:
     def _load_config(self, config_path: str) -> Dict[str, Any]:
         """Load configuration from YAML file"""
         try:
-            with open(config_path, 'r') as file:
-                return yaml.safe_load(file)
-        except FileNotFoundError:
-            # Return default config if file not found
+            if yaml and Path(config_path).exists():
+                with open(config_path, 'r') as file:
+                    config = yaml.safe_load(file)
+                    return config if config else self._get_default_config()
+            else:
+                if not yaml:
+                    print("Warning: YAML not available, using default config")
+                else:
+                    print(f"Warning: Config file {config_path} not found, using default config")
+                return self._get_default_config()
+        except Exception as e:
+            print(f"Warning: Error loading config: {e}, using default config")
             return self._get_default_config()
     
     def _get_default_config(self) -> Dict[str, Any]:
@@ -64,7 +246,7 @@ class CustomerSegmentationOrchestrator:
             'logging': {'level': 'INFO', 'file': 'logs/customer_segmentation.log'}
         }
     
-    async def run_enhanced_segmentation_workflow(self, input_data: pd.DataFrame) -> Dict[str, Any]:
+    async def run_enhanced_segmentation_workflow(self, input_data: Any) -> Dict[str, Any]:
         """
         Run the complete enhanced customer segmentation workflow with analysis
         
@@ -404,16 +586,22 @@ async def main():
     # Create or load sample data
     try:
         sample_data = await orchestrator.data_pipeline.create_sample_data(n_samples=1000)
+        if isinstance(sample_data, dict) and "message" in sample_data:
+            print("⚠️ Warning: Using mock data due to missing dependencies")
+            # Create a minimal dataframe for demo
+            sample_data = {"customer_id": [1, 2, 3], "income": [50000, 60000, 70000]}
         print(f"📊 Created sample data with {len(sample_data)} customers")
     except Exception as e:
         print(f"Error creating sample data: {e}")
         return
-    
+
     # Run enhanced segmentation workflow
     try:
-        results = await orchestrator.run_enhanced_segmentation_workflow(sample_data)
-        
-        # Display summary
+        if pd and hasattr(sample_data, 'shape'):
+            results = await orchestrator.run_enhanced_segmentation_workflow(sample_data)
+        else:
+            print("⚠️ Skipping workflow due to missing pandas or invalid data format")
+            return        # Display summary
         print("\n" + "="*60)
         print("🎉 ENHANCED SEGMENTATION WORKFLOW COMPLETED")
         print("="*60)
