@@ -110,7 +110,9 @@ def detect_column_mapping(data):
             'household_size': ['household', 'family', 'dependents', 'children', 'size', 'members']
         },
         'general': {
-            'customer_id': ['customer_id', 'id', 'customer', 'client_id', 'account_id', 'user_id', 'person_id']
+            'customer_id': ['customer_id', 'id', 'customer', 'client_id', 'account_id', 'user_id', 'person_id', 
+                           'cust_id', 'customerid', 'clientid', 'userid', 'personid', 'accountid', 'member_id', 
+                           'memberid', 'unique_id', 'uniqueid', 'identifier', 'key', 'index', 'number', 'no']
         }
     }
     
@@ -618,18 +620,31 @@ def main():
                             }
                             st.dataframe(col_info)
                         
-                        # Validate required columns
+                        # Check if we can use an existing column as customer_id
+                        detected_customer_id = None
+                        if column_mapping.get('suggested_mappings', {}).get('general', {}).get('customer_id'):
+                            detected_customer_id = column_mapping['suggested_mappings']['general']['customer_id']
+                        
+                        # Add customer_id if missing (do this first)
+                        if 'customer_id' not in sample_data.columns:
+                            if detected_customer_id and detected_customer_id in sample_data.columns:
+                                # Rename the detected column to customer_id
+                                sample_data = sample_data.rename(columns={detected_customer_id: 'customer_id'})
+                                st.info(f"✅ Using '{detected_customer_id}' as customer_id column")
+                            else:
+                                # Create a new customer_id column
+                                sample_data['customer_id'] = range(len(sample_data))
+                                st.info("✅ Added 'customer_id' column automatically")
+                        
+                        # Validate required columns (after adding missing ones)
                         required_columns = ['customer_id']
                         missing_columns = [col for col in required_columns if col not in sample_data.columns]
                         
                         if missing_columns:
                             st.warning(f"⚠️ Missing recommended columns: {missing_columns}")
-                            st.info("💡 The analysis will work with your current columns, but having 'customer_id' is recommended for better results.")
-                        
-                        # Add customer_id if missing
-                        if 'customer_id' not in sample_data.columns:
-                            sample_data['customer_id'] = range(len(sample_data))
-                            st.info("✅ Added 'customer_id' column automatically")
+                            st.info("💡 The analysis will work with your current columns, but having these columns is recommended for better results.")
+                        else:
+                            st.success("✅ All recommended columns are present or have been added automatically")
                         
                     except Exception as e:
                         st.error(f"❌ Error loading uploaded file: {str(e)}")
