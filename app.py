@@ -12,6 +12,9 @@ import os
 # Import data science libraries
 import pandas as pd
 import numpy as np
+import matplotlib.pyplot as plt
+import matplotlib
+matplotlib.use('Agg')  # Use non-interactive backend for Streamlit
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -953,6 +956,15 @@ def main():
             if is_advanced:
                 st.subheader("🔬 Advanced Multi-Dynamic Analysis Results")
                 
+                # Debug information
+                with st.expander("🔍 Debug Information", expanded=False):
+                    st.write("**Results Structure:**")
+                    st.write(f"- advanced_segmentation keys: {list(results.get('advanced_segmentation', {}).keys())}")
+                    st.write(f"- dummy_variables count: {len(results.get('dummy_variables', {}))}")
+                    st.write(f"- regression_analysis keys: {list(results.get('regression_analysis', {}).keys())}")
+                    st.write("**Full Results:**")
+                    st.json(results)
+                
                 # Show selected dynamics
                 st.write("**Selected Dynamics:**")
                 for dynamic, selected in results['analysis_config']['dynamics_selection'].items():
@@ -971,6 +983,9 @@ def main():
                                 st.write(f"  • {segment}: {count} customers")
                         else:
                             st.error(f"Error in {dynamic}: {seg_data['error']}")
+                else:
+                    st.warning("⚠️ No advanced segmentation results found. This might indicate an issue with the analysis.")
+                    st.info("💡 Try running the analysis again or check if your selected dynamics have appropriate data columns.")
             
             else:
                 # Standard segmentation results overview
