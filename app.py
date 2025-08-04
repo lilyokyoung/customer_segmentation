@@ -75,9 +75,35 @@ def main():
     # Sidebar configuration
     st.sidebar.header("🔧 Configuration")
     
-    # Sample data configuration
-    st.sidebar.subheader("📊 Sample Data")
-    sample_size = st.sidebar.slider("Number of customers", min_value=100, max_value=5000, value=1000, step=100)
+    # Data Source Selection
+    st.sidebar.subheader("📁 Data Source")
+    data_source = st.sidebar.radio(
+        "Choose data source:",
+        ["🎲 Generate Sample Data", "📂 Upload Your Dataset"],
+        help="Select whether to use generated sample data or upload your own CSV file"
+    )
+    
+    # Upload dataset option
+    uploaded_file = None
+    if data_source == "📂 Upload Your Dataset":
+        st.sidebar.markdown("**Upload CSV File:**")
+        uploaded_file = st.sidebar.file_uploader(
+            "Choose a CSV file",
+            type=['csv'],
+            help="Upload a CSV file with customer data. Should include columns like customer_id, monthly_income, credit_score, etc."
+        )
+        
+        if uploaded_file is not None:
+            # Show file info
+            st.sidebar.success(f"✅ File uploaded: {uploaded_file.name}")
+            st.sidebar.info(f"📊 File size: {uploaded_file.size} bytes")
+    
+    # Sample data configuration (only show if generating sample data)
+    if data_source == "🎲 Generate Sample Data":
+        st.sidebar.subheader("📊 Sample Data Configuration")
+        sample_size = st.sidebar.slider("Number of customers", min_value=100, max_value=5000, value=1000, step=100)
+    else:
+        sample_size = 1000  # Default value when uploading data
     
     # Analysis mode
     st.sidebar.subheader("🤖 Analysis Mode")
@@ -98,6 +124,32 @@ def main():
     
     with col1:
         st.subheader("🚀 Run AI Agent Analysis")
+        
+        # Show data format requirements if upload mode is selected
+        if data_source == "📂 Upload Your Dataset":
+            with st.expander("📋 Data Format Requirements", expanded=True):
+                st.markdown("""
+                **Required/Recommended Columns for Best Results:**
+                
+                **Financial Capability Analysis:**
+                - `monthly_income` - Customer monthly income
+                - `credit_score` - Credit score (300-850 range)
+                - `customer_id` - Unique customer identifier
+                
+                **Financial Hardship Analysis:**
+                - `debt_to_income_ratio` - Ratio of debt to income
+                - `payment_delays_count` - Number of payment delays
+                
+                **Gambling Behavior Analysis:**
+                - `gambling_merchant_frequency` - Frequency of gambling transactions
+                - `large_cash_withdrawals` - Number of large cash withdrawals
+                
+                **📌 Notes:**
+                - CSV format with headers in the first row
+                - Numeric columns should contain numeric values
+                - Missing columns will be handled gracefully by the system
+                - The system will adapt to your available data columns
+                """)
         
         if st.button("🤖 Start Customer Segmentation Analysis", type="primary", use_container_width=True):
             with st.spinner("Initializing AI Agent Orchestrator..."):
@@ -125,34 +177,83 @@ def main():
                     st.error(f"❌ Error initializing orchestrator: {str(e)}")
                     return
             
-            # Create sample data
-            with st.spinner(f"Creating sample data for {sample_size} customers..."):
-                try:
-                    # Use asyncio to run the async function
-                    loop = asyncio.new_event_loop()
-                    asyncio.set_event_loop(loop)
-                    
-                    sample_data = loop.run_until_complete(
-                        st.session_state.orchestrator.data_pipeline.create_sample_data(n_samples=sample_size)
-                    )
-                    
-                    loop.close()
-                    
-                    if isinstance(sample_data, dict) and "message" in sample_data:
-                        st.warning("⚠️ Using mock data due to missing dependencies")
-                        # Create a minimal dataframe for demo
-                        sample_data = pd.DataFrame({
-                            'customer_id': range(sample_size),
-                            'monthly_income': np.random.normal(5000, 1500, sample_size),
-                            'credit_score': np.random.normal(700, 100, sample_size),
-                            'debt_to_income_ratio': np.random.uniform(0.1, 0.8, sample_size),
-                        })
-                    
-                    st.success(f"✅ Created sample data with {len(sample_data)} customers")
-                    
-                except Exception as e:
-                    st.error(f"❌ Error creating sample data: {str(e)}")
-                    return
+            # Load or create sample data
+            if data_source == "📂 Upload Your Dataset" and uploaded_file is not None:
+                # Handle uploaded file
+                with st.spinner("📂 Loading uploaded dataset..."):
+                    try:
+                        # Read the uploaded CSV file
+                        sample_data = pd.read_csv(uploaded_file)
+                        
+                        # Display dataset info
+                        st.success(f"✅ Dataset loaded successfully!")
+                        st.info(f"📊 Dataset shape: {sample_data.shape[0]} rows × {sample_data.shape[1]} columns")
+                        
+                        # Show column info
+                        with st.expander("📋 Dataset Preview", expanded=False):
+                            st.write("**First 5 rows:**")
+                            st.dataframe(sample_data.head())
+                            st.write("**Column Information:**")
+                            col_info = pd.DataFrame({
+                                'Column': sample_data.columns,
+                                'Data Type': sample_data.dtypes,
+                                'Non-Null Count': sample_data.count(),
+                                'Null Count': sample_data.isnull().sum()
+                            })
+                            st.dataframe(col_info)
+                        
+                        # Validate required columns
+                        required_columns = ['customer_id']
+                        missing_columns = [col for col in required_columns if col not in sample_data.columns]
+                        
+                        if missing_columns:
+                            st.warning(f"⚠️ Missing recommended columns: {missing_columns}")
+                            st.info("💡 The analysis will work with your current columns, but having 'customer_id' is recommended for better results.")
+                        
+                        # Add customer_id if missing
+                        if 'customer_id' not in sample_data.columns:
+                            sample_data['customer_id'] = range(len(sample_data))
+                            st.info("✅ Added 'customer_id' column automatically")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error loading uploaded file: {str(e)}")
+                        st.error("Please make sure your file is a valid CSV with proper formatting.")
+                        return
+            
+            elif data_source == "📂 Upload Your Dataset" and uploaded_file is None:
+                st.warning("📂 Please upload a CSV file to proceed with analysis")
+                st.info("💡 You can also switch to 'Generate Sample Data' mode to test the system")
+                return
+            
+            else:
+                # Generate sample data
+                with st.spinner(f"Creating sample data for {sample_size} customers..."):
+                    try:
+                        # Use asyncio to run the async function
+                        loop = asyncio.new_event_loop()
+                        asyncio.set_event_loop(loop)
+                        
+                        sample_data = loop.run_until_complete(
+                            st.session_state.orchestrator.data_pipeline.create_sample_data(n_samples=sample_size)
+                        )
+                        
+                        loop.close()
+                        
+                        if isinstance(sample_data, dict) and "message" in sample_data:
+                            st.warning("⚠️ Using mock data due to missing dependencies")
+                            # Create a minimal dataframe for demo
+                            sample_data = pd.DataFrame({
+                                'customer_id': range(sample_size),
+                                'monthly_income': np.random.normal(5000, 1500, sample_size),
+                                'credit_score': np.random.normal(700, 100, sample_size),
+                                'debt_to_income_ratio': np.random.uniform(0.1, 0.8, sample_size),
+                            })
+                        
+                        st.success(f"✅ Created sample data with {len(sample_data)} customers")
+                        
+                    except Exception as e:
+                        st.error(f"❌ Error creating sample data: {str(e)}")
+                        return
             
             # Run analysis
             with st.spinner("Running enhanced segmentation workflow..."):
@@ -219,20 +320,39 @@ def main():
         st.subheader("ℹ️ System Information")
         
         # System info
-        st.markdown("""
+        st.markdown(f"""
         **🔧 Current Configuration:**
+        - Data Source: {data_source}
         - Python Version: Available
         - Pandas: Available
         - NumPy: Available
         - Async Support: Enabled
         
-        **📊 Analysis Features:**
+        **📊 Data Input Options:**
+        - 🎲 Generate synthetic sample data
+        - 📂 Upload your own CSV files
+        - 🔍 Automatic data validation
+        - 📋 Column mapping assistance
+        
+        **🤖 Analysis Features:**
         - Financial Capability Segmentation
         - Financial Hardship Assessment  
         - Gambling Behavior Analysis
         - Cross-Model Correlation Analysis
         - Comprehensive Reporting
+        
+        **📁 Supported File Formats:**
+        - CSV files (.csv)
+        - UTF-8 encoding recommended
+        - Headers in first row
         """)
+        
+        # Show upload status if in upload mode
+        if data_source == "📂 Upload Your Dataset":
+            if uploaded_file is not None:
+                st.success("✅ File Ready for Analysis")
+            else:
+                st.warning("⏳ Awaiting File Upload")
     
     # Display results if available
     if st.session_state.analysis_results:
