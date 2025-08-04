@@ -12,20 +12,20 @@
   },
   "correlation_analysis": {
     "feature_correlations": {
-      "correlation_matrix": "                      customer_id  ...  debt_to_income_ratio\ncustomer_id              1.000000  ...              0.004952\nmonthly_income          -0.010946  ...             -0.042051\ncredit_score            -0.022127  ...             -0.034986\ndebt_to_income_ratio     0.004952  ...              1.000000\n\n[4 rows x 4 columns]",
+      "correlation_matrix": "                      customer_id  ...  debt_to_income_ratio\ncustomer_id              1.000000  ...             -0.024194\nmonthly_income          -0.018035  ...              0.006890\ncredit_score             0.018870  ...              0.041088\ndebt_to_income_ratio    -0.024194  ...              1.000000\n\n[4 rows x 4 columns]",
       "strong_correlations": [],
       "correlation_insights": [
-        "Average absolute correlation: 0.027",
-        "Maximum absolute correlation: 0.049",
+        "Average absolute correlation: 0.023",
+        "Maximum absolute correlation: 0.041",
         "No strong correlations (>0.7) found between features"
       ],
       "correlation_statistics": {
-        "mean_absolute_correlation": 0.02735217608144183,
-        "median_absolute_correlation": 0.028556393717799562,
-        "std_absolute_correlation": 0.016038465920945977,
-        "max_absolute_correlation": 0.04905125941410062,
-        "min_absolute_correlation": 0.004952032860657105,
-        "correlation_range": 0.04409922655344352
+        "mean_absolute_correlation": 0.02277378686506704,
+        "median_absolute_correlation": 0.021531897359272203,
+        "std_absolute_correlation": 0.01041144383833256,
+        "max_absolute_correlation": 0.041088026576114614,
+        "min_absolute_correlation": 0.00689003422100741,
+        "correlation_range": 0.034197992355107204
       },
       "multicollinearity_issues": {
         "high_correlation_pairs": [],
@@ -43,19 +43,19 @@
     },
     "model_feature_correlations": {
       "financial_capability": {
-        "financial_capability_correlation_matrix": "                monthly_income  credit_score\nmonthly_income        1.000000     -0.049051\ncredit_score         -0.049051      1.000000",
+        "financial_capability_correlation_matrix": "                monthly_income  credit_score\nmonthly_income        1.000000      0.027566\ncredit_score          0.027566      1.000000",
         "financial_capability_strong_correlations": [],
         "financial_capability_correlation_insights": [
-          "Average absolute correlation: 0.049",
-          "Maximum absolute correlation: 0.049",
+          "Average absolute correlation: 0.028",
+          "Maximum absolute correlation: 0.028",
           "No strong correlations (>0.7) found between features"
         ],
         "financial_capability_correlation_statistics": {
-          "mean_absolute_correlation": 0.04905125941410062,
-          "median_absolute_correlation": 0.04905125941410062,
+          "mean_absolute_correlation": 0.027566117514621367,
+          "median_absolute_correlation": 0.027566117514621367,
           "std_absolute_correlation": 0.0,
-          "max_absolute_correlation": 0.04905125941410062,
-          "min_absolute_correlation": 0.04905125941410062,
+          "max_absolute_correlation": 0.027566117514621367,
+          "min_absolute_correlation": 0.027566117514621367,
           "correlation_range": 0.0
         },
         "financial_capability_multicollinearity_issues": {
@@ -75,24 +75,24 @@
       "target_correlations": {
         "credit_score": {
           "correlations": {
-            "customer_id": -0.02212703660735247,
-            "monthly_income": -0.049051259414100476,
-            "debt_to_income_ratio": -0.034985750828249035
+            "customer_id": 0.018869708170816995,
+            "monthly_income": 0.02756611751462143,
+            "debt_to_income_ratio": 0.04108802657611474
           },
           "top_positive": {
-            "customer_id": -0.02212703660735247,
-            "debt_to_income_ratio": -0.034985750828249035,
-            "monthly_income": -0.049051259414100476
+            "debt_to_income_ratio": 0.04108802657611474,
+            "monthly_income": 0.02756611751462143,
+            "customer_id": 0.018869708170816995
           },
           "top_negative": {
-            "monthly_income": -0.049051259414100476,
-            "debt_to_income_ratio": -0.034985750828249035,
-            "customer_id": -0.02212703660735247
+            "customer_id": 0.018869708170816995,
+            "monthly_income": 0.02756611751462143,
+            "debt_to_income_ratio": 0.04108802657611474
           },
           "strongest_overall": {
-            "monthly_income": 0.049051259414100476,
-            "debt_to_income_ratio": 0.034985750828249035,
-            "customer_id": 0.02212703660735247
+            "debt_to_income_ratio": 0.04108802657611474,
+            "monthly_income": 0.02756611751462143,
+            "customer_id": 0.018869708170816995
           }
         }
       },
@@ -101,9 +101,9 @@
       ],
       "correlation_summary": {
         "credit_score": {
-          "strongest_feature": "monthly_income",
-          "strongest_correlation": 0.049051259414100476,
-          "mean_absolute_correlation": 0.03538801561656733,
+          "strongest_feature": "debt_to_income_ratio",
+          "strongest_correlation": 0.04108802657611474,
+          "mean_absolute_correlation": 0.02917461742051772,
           "features_with_strong_correlation": 0
         }
       }
@@ -117,7 +117,7 @@
       ]
     },
     "analysis_metadata": {
-      "timestamp": "2025-08-05T00:28:04.765384",
+      "timestamp": "2025-08-05T09:01:54.446473",
       "features_analyzed": 4,
       "correlation_method": "pearson"
     }
@@ -192,29 +192,29 @@
           "missing_percentage": 0.0
         },
         "monthly_income": {
-          "mean": 5047.3255355674155,
-          "median": 5027.356703365925,
-          "std": 1527.0188187468984,
-          "min": -604.74084144073,
-          "max": 10262.548097780094,
+          "mean": 5061.611827058258,
+          "median": 5080.080031965606,
+          "std": 1484.8943300765573,
+          "min": -852.211257571792,
+          "max": 10051.291061247226,
           "missing_count": "0",
           "missing_percentage": 0.0
         },
         "credit_score": {
-          "mean": 703.8214782035863,
-          "median": 704.4519869081344,
-          "std": 97.84140044194682,
-          "min": 332.85344952737813,
-          "max": 982.8790003165341,
+          "mean": 702.6754366286896,
+          "median": 703.2821293529882,
+          "std": 102.43127737892675,
+          "min": 367.8184223040066,
+          "max": 1054.849872928647,
           "missing_count": "0",
           "missing_percentage": 0.0
         },
         "debt_to_income_ratio": {
-          "mean": 0.45271632167262144,
-          "median": 0.4553697043890568,
-          "std": 0.20316757812870576,
-          "min": 0.10006297828712177,
-          "max": 0.7991435225377433,
+          "mean": 0.45257276669653773,
+          "median": 0.4537850854848967,
+          "std": 0.1979028720930637,
+          "min": 0.10107308803737663,
+          "max": 0.7997534223775549,
           "missing_count": "0",
           "missing_percentage": 0.0
         }
@@ -226,7 +226,7 @@
         "outlier_issues": [],
         "overall_quality": "excellent"
       },
-      "summary_timestamp": "2025-08-05T00:28:04.777481"
+      "summary_timestamp": "2025-08-05T09:01:54.455701"
     },
     "segmentation_summary": {
       "model_summaries": {},
@@ -247,10 +247,10 @@
           "total_features_analyzed": 4,
           "strong_correlations_found": 0,
           "multicollinearity_risk": "low",
-          "average_correlation_strength": 0.02735217608144183,
+          "average_correlation_strength": 0.02277378686506704,
           "key_insights": [
-            "Average absolute correlation: 0.027",
-            "Maximum absolute correlation: 0.049",
+            "Average absolute correlation: 0.023",
+            "Maximum absolute correlation: 0.041",
             "No strong correlations (>0.7) found between features"
           ]
         }
@@ -303,13 +303,13 @@
       "mitigation_strategies": []
     },
     "generation_metadata": {
-      "timestamp": "2025-08-05T00:28:04.777588",
+      "timestamp": "2025-08-05T09:01:54.455795",
       "report_version": "1.0.0",
       "analysis_scope": "comprehensive"
     }
   },
   "metadata": {
-    "timestamp": "2025-08-05T00:28:04.777593",
+    "timestamp": "2025-08-05T09:01:54.455800",
     "total_customers": 1000,
     "features_analyzed": 4,
     "models_executed": 3

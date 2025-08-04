@@ -1,0 +1,6 @@
+# Ultra-minimal requirements for deployment platforms with strict constraints
+numpy>=1.21.0
+pandas>=1.5.0
+scikit-learn>=1.2.0
+matplotlib>=3.5.0
+pyyaml>=6.0.0

@@ -3,16 +3,16 @@ Setup configuration for Customer Segmentation AI Agent
 """
 from setuptools import setup, find_packages
 
-# Core requirements (always needed)
+# Core requirements (always needed) - Deployment optimized
 core_requirements = [
-    "numpy>=1.21.0,<1.25.0",
-    "pandas>=1.5.0,<2.1.0", 
-    "scikit-learn>=1.2.0,<1.4.0",
-    "scipy>=1.9.0,<1.12.0",
-    "matplotlib>=3.5.0,<3.8.0",
-    "seaborn>=0.11.0,<0.13.0",
-    "pyyaml>=6.0.0,<6.1.0",
-    "joblib>=1.2.0,<1.4.0"
+    "numpy>=1.21.0",
+    "pandas>=1.5.0", 
+    "scikit-learn>=1.2.0",
+    "scipy>=1.9.0",
+    "matplotlib>=3.5.0",
+    "seaborn>=0.11.0",
+    "pyyaml>=6.0.0",
+    "joblib>=1.2.0"
 ]
 
 # Optional ML models (can be installed separately)
@@ -36,7 +36,7 @@ setup(
     url="https://github.com/lilyokyoung/customer_segmentation",
     packages=find_packages(where="src"),
     package_dir={"": "src"},
-    python_requires=">=3.8,<3.12",
+    python_requires=">=3.8",
     
     # Core requirements only for basic installation
     install_requires=core_requirements,
