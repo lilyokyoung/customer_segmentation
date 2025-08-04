@@ -601,7 +601,9 @@ async def main():
             results = await orchestrator.run_enhanced_segmentation_workflow(sample_data)
         else:
             print("⚠️ Skipping workflow due to missing pandas or invalid data format")
-            return        # Display summary
+            return
+        
+        # Display summary
         print("\n" + "="*60)
         print("🎉 ENHANCED SEGMENTATION WORKFLOW COMPLETED")
         print("="*60)
