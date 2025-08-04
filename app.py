@@ -86,11 +86,11 @@ def main():
     # Upload dataset option
     uploaded_file = None
     if data_source == "📂 Upload Your Dataset":
-        st.sidebar.markdown("**Upload CSV File:**")
+        st.sidebar.markdown("**Upload Data File:**")
         uploaded_file = st.sidebar.file_uploader(
-            "Choose a CSV file",
-            type=['csv'],
-            help="Upload a CSV file with customer data. Should include columns like customer_id, monthly_income, credit_score, etc."
+            "Choose a CSV or Excel file",
+            type=['csv', 'xlsx', 'xls'],
+            help="Upload a CSV or Excel file with customer data. Should include columns like customer_id, monthly_income, credit_score, etc."
         )
         
         if uploaded_file is not None:
@@ -145,7 +145,9 @@ def main():
                 - `large_cash_withdrawals` - Number of large cash withdrawals
                 
                 **📌 Notes:**
-                - CSV format with headers in the first row
+                - **Supported formats:** CSV (.csv) and Excel (.xlsx, .xls)
+                - Headers should be in the first row
+                - For Excel files, data should be in the first sheet
                 - Numeric columns should contain numeric values
                 - Missing columns will be handled gracefully by the system
                 - The system will adapt to your available data columns
@@ -182,11 +184,29 @@ def main():
                 # Handle uploaded file
                 with st.spinner("📂 Loading uploaded dataset..."):
                     try:
-                        # Read the uploaded CSV file
-                        sample_data = pd.read_csv(uploaded_file)
+                        # Determine file type and read accordingly
+                        file_extension = uploaded_file.name.split('.')[-1].lower()
+                        
+                        if file_extension == 'csv':
+                            sample_data = pd.read_csv(uploaded_file)
+                        elif file_extension in ['xlsx', 'xls']:
+                            # For Excel files, try to read the first sheet
+                            try:
+                                sample_data = pd.read_excel(uploaded_file, sheet_name=0)
+                            except ImportError:
+                                st.error("❌ Excel file support requires the 'openpyxl' library. Please use CSV format or contact support.")
+                                return
+                            except Exception as e:
+                                st.error(f"❌ Error reading Excel file: {str(e)}")
+                                st.info("💡 Try saving your Excel file as CSV format for better compatibility.")
+                                return
+                        else:
+                            st.error(f"❌ Unsupported file format: {file_extension}")
+                            st.info("💡 Please upload a CSV (.csv) or Excel (.xlsx, .xls) file.")
+                            return
                         
                         # Display dataset info
-                        st.success(f"✅ Dataset loaded successfully!")
+                        st.success(f"✅ Dataset loaded successfully! ({file_extension.upper()} format)")
                         st.info(f"📊 Dataset shape: {sample_data.shape[0]} rows × {sample_data.shape[1]} columns")
                         
                         # Show column info
@@ -343,6 +363,7 @@ def main():
         
         **📁 Supported File Formats:**
         - CSV files (.csv)
+        - Excel files (.xlsx, .xls)
         - UTF-8 encoding recommended
         - Headers in first row
         """)
@@ -350,7 +371,8 @@ def main():
         # Show upload status if in upload mode
         if data_source == "📂 Upload Your Dataset":
             if uploaded_file is not None:
-                st.success("✅ File Ready for Analysis")
+                file_type = uploaded_file.name.split('.')[-1].upper()
+                st.success(f"✅ {file_type} File Ready for Analysis")
             else:
                 st.warning("⏳ Awaiting File Upload")
     
