@@ -1,2 +1,2 @@
-web: python src/main.py
-worker: python src/main.py
+web: python app.py
+worker: python app.py
