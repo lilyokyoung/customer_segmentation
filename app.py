@@ -4,12 +4,14 @@ Enhanced with interactive dashboard and real-time analysis
 """
 import streamlit as st
 import asyncio
-import pandas as pd
-import numpy as np
 import json
 from datetime import datetime
 import sys
 import os
+
+# Import data science libraries
+import pandas as pd
+import numpy as np
 
 # Add src to path for imports
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
@@ -529,7 +531,7 @@ def main():
                                 return
                             except Exception as e:
                                 st.error(f"❌ Error reading Excel file: {str(e)}")
-                                st.info("💡 Try saving your Excel file as CSV format for better compatibility.")
+                                st.info("💡 Try saving your Excel file as CSV format or install openpyxl: pip install openpyxl")
                                 return
                         else:
                             st.error(f"❌ Unsupported file format: {file_extension}")
@@ -1056,7 +1058,6 @@ def main():
                     
                     # Show sample of dummy variable data
                     with st.expander("📊 Sample Dummy Variable Data", expanded=False):
-                        import pandas as pd
                         dummy_df = pd.DataFrame(dummy_vars)
                         st.dataframe(dummy_df.head(10))
                 else:
@@ -1080,7 +1081,6 @@ def main():
                 with col2:
                     if st.button("📊 Export Segment Data", use_container_width=True) and results.get('dummy_variables'):
                         # Create CSV with dummy variables
-                        import pandas as pd
                         dummy_df = pd.DataFrame(results['dummy_variables'])
                         csv_string = dummy_df.to_csv(index=False)
                         st.download_button(
@@ -1105,7 +1105,6 @@ def main():
                                 })
                         
                         if reg_summary:
-                            import pandas as pd
                             reg_df = pd.DataFrame(reg_summary)
                             csv_string = reg_df.to_csv(index=False)
                             st.download_button(
