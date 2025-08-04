@@ -79,17 +79,36 @@ def detect_column_mapping(data):
     # Define keywords for different types of analysis
     mapping_keywords = {
         'financial_capability': {
-            'monthly_income': ['income', 'salary', 'monthly_income', 'gross_income', 'net_income', 'earnings', 'revenue'],
-            'credit_score': ['credit_score', 'credit', 'score', 'credit_rating', 'fico', 'creditworthiness'],
-            'customer_id': ['customer_id', 'id', 'customer', 'client_id', 'account_id', 'user_id']
+            'monthly_income': ['income', 'salary', 'monthly_income', 'gross_income', 'net_income', 'earnings', 'revenue', 'wage'],
+            'credit_score': ['credit_score', 'credit', 'score', 'credit_rating', 'fico', 'creditworthiness', 'rating'],
+            'savings': ['savings', 'deposits', 'balance', 'investment', 'assets', 'wealth'],
+            'employment_status': ['employment', 'job', 'work', 'occupation', 'employed', 'status'],
+            'financial_literacy': ['literacy', 'education', 'knowledge', 'understanding', 'awareness']
         },
         'financial_hardship': {
-            'debt_to_income_ratio': ['debt_to_income', 'debt_ratio', 'dti', 'debt_income_ratio', 'leverage'],
-            'payment_delays': ['payment_delays', 'late_payments', 'delays', 'delinquency', 'overdue']
+            'debt_to_income_ratio': ['debt_to_income', 'debt_ratio', 'dti', 'debt_income_ratio', 'leverage', 'debt'],
+            'payment_delays': ['payment_delays', 'late_payments', 'delays', 'delinquency', 'overdue', 'arrears'],
+            'financial_stress': ['stress', 'difficulty', 'hardship', 'struggle', 'pressure', 'burden'],
+            'missed_payments': ['missed', 'default', 'failed', 'unpaid', 'outstanding'],
+            'emergency_fund': ['emergency', 'fund', 'reserve', 'contingency', 'backup']
         },
         'gambling_behavior': {
-            'gambling_frequency': ['gambling', 'casino', 'betting', 'gaming', 'lottery'],
-            'cash_withdrawals': ['cash', 'withdrawal', 'atm', 'cash_advance']
+            'gambling_frequency': ['gambling', 'casino', 'betting', 'gaming', 'lottery', 'wager', 'poker', 'slots'],
+            'gambling_spend': ['spend', 'amount', 'expenditure', 'loss', 'stake', 'bet_amount'],
+            'gambling_venues': ['venue', 'location', 'casino', 'online', 'app', 'platform'],
+            'gambling_pattern': ['pattern', 'behavior', 'habit', 'frequency', 'regular', 'occasional'],
+            'problem_gambling': ['problem', 'addiction', 'compulsive', 'excessive', 'control']
+        },
+        'demographics': {
+            'age': ['age', 'birth', 'born', 'year', 'old', 'generation'],
+            'gender': ['gender', 'sex', 'male', 'female', 'm', 'f'],
+            'location': ['location', 'city', 'state', 'region', 'area', 'postcode', 'zip', 'address'],
+            'education': ['education', 'degree', 'qualification', 'school', 'university', 'college'],
+            'marital_status': ['marital', 'married', 'single', 'divorced', 'status', 'relationship'],
+            'household_size': ['household', 'family', 'dependents', 'children', 'size', 'members']
+        },
+        'general': {
+            'customer_id': ['customer_id', 'id', 'customer', 'client_id', 'account_id', 'user_id', 'person_id']
         }
     }
     
@@ -157,6 +176,187 @@ def apply_column_mapping(data, auto_mapping, manual_mapping):
     
     return mapped_data, mapping_applied
 
+def create_advanced_segments(data, dynamics_selection, column_mapping):
+    """
+    Create segments for selected dynamics individually
+    """
+    segments_results = {}
+    dummy_variables = {}
+    
+    # Map columns to dynamics
+    dynamic_columns = {}
+    for dynamic, selected in dynamics_selection.items():
+        if selected and dynamic in column_mapping['suggested_mappings']:
+            dynamic_columns[dynamic] = []
+            for feature, column in column_mapping['suggested_mappings'][dynamic].items():
+                if column in data.columns:
+                    dynamic_columns[dynamic].append(column)
+    
+    # Create segments for each dynamic
+    for dynamic, columns in dynamic_columns.items():
+        if len(columns) > 0:
+            # Simple clustering-based segmentation
+            from sklearn.cluster import KMeans
+            from sklearn.preprocessing import StandardScaler
+            import numpy as np
+            
+            try:
+                # Prepare data for this dynamic
+                dynamic_data = data[columns].fillna(data[columns].median())
+                
+                # Standardize the data
+                scaler = StandardScaler()
+                scaled_data = scaler.fit_transform(dynamic_data)
+                
+                # Perform clustering (3 segments: Low, Medium, High)
+                kmeans = KMeans(n_clusters=3, random_state=42, n_init=10)
+                segments = kmeans.fit_predict(scaled_data)
+                
+                # Create meaningful segment labels
+                segment_means = []
+                for i in range(3):
+                    mask = segments == i
+                    if mask.sum() > 0:
+                        segment_mean = dynamic_data[mask].mean().mean()
+                        segment_means.append((i, segment_mean))
+                
+                # Sort by mean values and assign labels
+                segment_means.sort(key=lambda x: x[1])
+                segment_labels = {
+                    segment_means[0][0]: f"{dynamic}_low",
+                    segment_means[1][0]: f"{dynamic}_medium", 
+                    segment_means[2][0]: f"{dynamic}_high"
+                }
+                
+                # Map segments to labels
+                labeled_segments = [segment_labels[seg] for seg in segments]
+                
+                segments_results[dynamic] = {
+                    'segments': labeled_segments,
+                    'features_used': columns,
+                    'segment_counts': {label: labeled_segments.count(label) for label in set(labeled_segments)}
+                }
+                
+                # Create dummy variables for regression
+                for label in set(labeled_segments):
+                    dummy_col_name = f"segment_{label}"
+                    dummy_variables[dummy_col_name] = [1 if seg == label else 0 for seg in labeled_segments]
+                
+            except Exception as e:
+                segments_results[dynamic] = {'error': str(e)}
+    
+    return segments_results, dummy_variables
+
+def perform_regression_analysis(data, segments_results, dummy_variables, regression_approach, dynamics_selection):
+    """
+    Perform regression analysis with segment dummy variables
+    """
+    regression_results = {}
+    
+    try:
+        from sklearn.linear_model import LinearRegression
+        from sklearn.model_selection import train_test_split
+        from sklearn.metrics import r2_score, mean_squared_error
+        import numpy as np
+        
+        # Create enhanced dataset with dummy variables
+        enhanced_data = data.copy()
+        for dummy_name, dummy_values in dummy_variables.items():
+            enhanced_data[dummy_name] = dummy_values
+        
+        # Automatic variable selection logic
+        if regression_approach == "Automatic Selection":
+            # Logical selection based on financial theory
+            
+            # Potential dependent variables (outcomes we want to predict)
+            potential_dependent = []
+            if dynamics_selection.get('financial_hardship'):
+                potential_dependent.extend([col for col in enhanced_data.columns 
+                                          if any(keyword in col.lower() for keyword in 
+                                          ['debt', 'stress', 'hardship', 'delay', 'missed'])])
+            
+            if dynamics_selection.get('gambling_behavior'):
+                potential_dependent.extend([col for col in enhanced_data.columns 
+                                          if any(keyword in col.lower() for keyword in 
+                                          ['gambling', 'spend', 'loss', 'problem'])])
+            
+            # Independent variables (predictors)
+            potential_independent = []
+            if dynamics_selection.get('financial_capability'):
+                potential_independent.extend([col for col in enhanced_data.columns 
+                                            if any(keyword in col.lower() for keyword in 
+                                            ['income', 'credit', 'savings', 'employment'])])
+            
+            if dynamics_selection.get('demographics'):
+                potential_independent.extend([col for col in enhanced_data.columns 
+                                            if any(keyword in col.lower() for keyword in 
+                                            ['age', 'gender', 'education', 'location'])])
+            
+            # Add segment dummy variables as independent variables
+            potential_independent.extend(list(dummy_variables.keys()))
+            
+            # Run multiple regression models
+            for dep_var in potential_dependent:
+                if dep_var in enhanced_data.columns:
+                    # Select independent variables (exclude the dependent variable)
+                    indep_vars = [var for var in potential_independent 
+                                 if var in enhanced_data.columns and var != dep_var]
+                    
+                    if len(indep_vars) > 0:
+                        try:
+                            # Prepare data
+                            y = enhanced_data[dep_var].fillna(enhanced_data[dep_var].median())
+                            X = enhanced_data[indep_vars].fillna(enhanced_data[indep_vars].median())
+                            
+                            # Split data
+                            X_train, X_test, y_train, y_test = train_test_split(
+                                X, y, test_size=0.3, random_state=42
+                            )
+                            
+                            # Fit model
+                            model = LinearRegression()
+                            model.fit(X_train, y_train)
+                            
+                            # Predictions
+                            y_pred = model.predict(X_test)
+                            
+                            # Metrics
+                            r2 = r2_score(y_test, y_pred)
+                            mse = mean_squared_error(y_test, y_pred)
+                            
+                            # Feature importance (coefficients)
+                            feature_importance = dict(zip(indep_vars, model.coef_))
+                            
+                            regression_results[dep_var] = {
+                                'r_squared': r2,
+                                'mse': mse,
+                                'feature_importance': feature_importance,
+                                'independent_variables': indep_vars,
+                                'n_observations': len(y_test),
+                                'model_intercept': model.intercept_
+                            }
+                            
+                        except Exception as e:
+                            regression_results[dep_var] = {'error': str(e)}
+        
+        # Add explanation of variable selection logic
+        regression_results['variable_selection_logic'] = {
+            'dependent_variables_rationale': 
+                "Selected variables representing outcomes of interest (financial stress, gambling problems) "
+                "that could be influenced by other factors.",
+            'independent_variables_rationale':
+                "Selected financial capability indicators, demographics, and segment membership "
+                "as potential predictors of financial outcomes.",
+            'segment_variables_usage':
+                "Segment dummy variables allow us to understand how belonging to different "
+                "customer segments affects the dependent variables."
+        }
+        
+    except Exception as e:
+        regression_results = {'error': str(e)}
+    
+    return regression_results
+
 def main():
     """Main Streamlit application"""
     
@@ -188,6 +388,46 @@ def main():
             # Show file info
             st.sidebar.success(f"✅ File uploaded: {uploaded_file.name}")
             st.sidebar.info(f"📊 File size: {uploaded_file.size} bytes")
+            
+            # Advanced Analysis Configuration
+            st.sidebar.markdown("---")
+            st.sidebar.subheader("🔬 Advanced Analysis Configuration")
+            
+            # Dynamic Selection
+            st.sidebar.markdown("**Select Dynamics for Analysis:**")
+            dynamics_selection = {
+                'financial_capability': st.sidebar.checkbox("💰 Financial Capability", value=True),
+                'financial_hardship': st.sidebar.checkbox("⚠️ Financial Hardship", value=True),
+                'gambling_behavior': st.sidebar.checkbox("🎰 Gambling Behaviour", value=True),
+                'demographics': st.sidebar.checkbox("👥 Demographics", value=True)
+            }
+            
+            # Analysis Strategy
+            st.sidebar.markdown("**Analysis Strategy:**")
+            analysis_strategy = st.sidebar.radio(
+                "Segmentation Approach:",
+                ["Individual Dynamics", "Combined Dynamics", "Sequential Analysis"],
+                help="Individual: Run segmentation separately for each dynamic\nCombined: Use all dynamics together\nSequential: Run individual then combined"
+            )
+            
+            # Regression Analysis Setup
+            st.sidebar.markdown("**Regression Analysis Setup:**")
+            enable_regression = st.sidebar.checkbox("🔍 Enable Regression Analysis", value=True)
+            
+            if enable_regression:
+                regression_approach = st.sidebar.selectbox(
+                    "Regression Approach:",
+                    ["Automatic Selection", "Manual Variable Selection", "Stepwise Selection"],
+                    help="Choose how to select dependent and independent variables"
+                )
+                
+                # Store configuration in session state
+                st.session_state.analysis_config = {
+                    'dynamics_selection': dynamics_selection,
+                    'analysis_strategy': analysis_strategy,
+                    'enable_regression': enable_regression,
+                    'regression_approach': regression_approach
+                }
     
     # Sample data configuration (only show if generating sample data)
     if data_source == "🎲 Generate Sample Data":
@@ -470,13 +710,76 @@ def main():
                             except Exception as e:
                                 st.warning(f"⚠️ Column mapping failed: {e}. Using original columns.")
                         
-                        # Create new event loop for the async workflow
-                        loop = asyncio.new_event_loop()
-                        asyncio.set_event_loop(loop)
+                        # Advanced Analysis Workflow
+                        if (data_source == "📂 Upload Your Dataset" and 
+                            hasattr(st.session_state, 'analysis_config') and
+                            any(st.session_state.analysis_config['dynamics_selection'].values())):
+                            
+                            status_text.text("🔄 Step 1/6: Individual Dynamics Segmentation...")
+                            progress_bar.progress(16)
+                            
+                            # Perform advanced segmentation
+                            segments_results, dummy_variables = create_advanced_segments(
+                                sample_data,
+                                st.session_state.analysis_config['dynamics_selection'],
+                                st.session_state.column_mapping['auto']
+                            )
+                            
+                            status_text.text("🔄 Step 2/6: Creating Dummy Variables...")
+                            progress_bar.progress(33)
+                            
+                            # Perform regression analysis if enabled
+                            regression_results = {}
+                            if st.session_state.analysis_config['enable_regression']:
+                                status_text.text("🔄 Step 3/6: Regression Analysis...")
+                                progress_bar.progress(50)
+                                
+                                regression_results = perform_regression_analysis(
+                                    sample_data,
+                                    segments_results,
+                                    dummy_variables,
+                                    st.session_state.analysis_config['regression_approach'],
+                                    st.session_state.analysis_config['dynamics_selection']
+                                )
+                            
+                            status_text.text("🔄 Step 4/6: Generating Insights...")
+                            progress_bar.progress(66)
+                            
+                            # Combine results
+                            results = {
+                                'advanced_segmentation': segments_results,
+                                'dummy_variables': dummy_variables,
+                                'regression_analysis': regression_results,
+                                'analysis_config': st.session_state.analysis_config,
+                                'metadata': {
+                                    'timestamp': datetime.now().isoformat(),
+                                    'total_customers': len(sample_data),
+                                    'features_analyzed': len(sample_data.columns) if hasattr(sample_data, 'columns') else 0,
+                                    'dynamics_analyzed': list(st.session_state.analysis_config['dynamics_selection'].keys()),
+                                    'analysis_type': 'advanced_multi_dynamic'
+                                }
+                            }
+                            
+                            status_text.text("🔄 Step 5/6: Creating Visualizations...")
+                            progress_bar.progress(83)
+                            
+                        else:
+                            # Standard workflow for sample data
+                            status_text.text("🔄 Step 3/5: Running standard segmentation...")
+                            progress_bar.progress(60)
+                            
+                            # Create new event loop for the async workflow
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                            
+                            results = loop.run_until_complete(
+                                st.session_state.orchestrator.run_enhanced_segmentation_workflow(sample_data)
+                            )
+                            
+                            loop.close()
                         
-                        results = loop.run_until_complete(
-                            st.session_state.orchestrator.run_enhanced_segmentation_workflow(sample_data)
-                        )
+                        status_text.text("🔄 Step 6/6: Finalizing Results...")
+                        progress_bar.progress(100)
                         
                         loop.close()
                         
@@ -578,13 +881,25 @@ def main():
         st.subheader("📊 Analysis Results")
         
         # Create tabs for different views
-        tab1, tab2, tab3, tab4 = st.tabs(["📈 Overview", "🔍 Detailed Results", "🔗 Correlations", "📝 Summary"])
+        results = st.session_state.analysis_results
+        
+        # Check if this is advanced analysis
+        is_advanced = 'advanced_segmentation' in results
+        
+        if is_advanced:
+            tab1, tab2, tab3, tab4, tab5 = st.tabs([
+                "📈 Overview", "� Individual Segments", "📊 Regression Analysis", 
+                "🎯 Dummy Variables", "📝 Export"
+            ])
+        else:
+            tab1, tab2, tab3, tab4 = st.tabs([
+                "📈 Overview", "�🔍 Detailed Results", "🔗 Correlations", "📝 Summary"
+            ])
         
         with tab1:
             st.subheader("Analysis Overview")
             
             # Key metrics
-            results = st.session_state.analysis_results
             col1, col2, col3, col4 = st.columns(4)
             
             with col1:
@@ -594,47 +909,226 @@ def main():
                 )
             
             with col2:
-                st.metric(
-                    "🔧 Features Analyzed", 
-                    results['metadata']['features_analyzed']
-                )
+                if is_advanced:
+                    dynamics_count = sum(1 for selected in results['analysis_config']['dynamics_selection'].values() if selected)
+                    st.metric("� Dynamics Analyzed", dynamics_count)
+                else:
+                    st.metric("🔧 Features Analyzed", results['metadata']['features_analyzed'])
             
             with col3:
-                st.metric(
-                    "🤖 Models Executed", 
-                    results['metadata']['models_executed']
-                )
+                if is_advanced:
+                    segments_count = len(results.get('advanced_segmentation', {}))
+                    st.metric("🎯 Segments Created", segments_count)
+                else:
+                    st.metric("🤖 Models Executed", results['metadata']['models_executed'])
             
             with col4:
-                st.metric(
-                    "⏰ Analysis Time", 
-                    "Real-time"
-                )
-            
-            # Segmentation results overview
-            if 'segmentation_results' in results:
-                st.subheader("🎯 Segmentation Results")
-                seg_results = results['segmentation_results']
-                
-                for model_name, model_results in seg_results.items():
-                    with st.expander(f"📊 {model_name.replace('_', ' ').title()} Results"):
-                        if isinstance(model_results, dict) and 'message' not in model_results:
-                            st.json(model_results)
-                        else:
-                            st.write(model_results)
-        
-        with tab2:
-            st.subheader("Detailed Analysis Results")
-            
-            # Full results in expandable sections
-            with st.expander("🔍 Complete Segmentation Results", expanded=False):
-                st.json(results['segmentation_results'])
-            
-            with st.expander("📊 Correlation Analysis", expanded=False):
-                if 'correlation_analysis' in results:
-                    st.json(results['correlation_analysis'])
+                if is_advanced and results.get('regression_analysis'):
+                    regression_count = len([k for k, v in results['regression_analysis'].items() 
+                                          if k != 'variable_selection_logic' and 'error' not in v])
+                    st.metric("📈 Regression Models", regression_count)
                 else:
-                    st.write("Correlation analysis not available")
+                    st.metric("⏰ Analysis Time", "Real-time")
+            
+            # Display results based on analysis type
+            if is_advanced:
+                st.subheader("🔬 Advanced Multi-Dynamic Analysis Results")
+                
+                # Show selected dynamics
+                st.write("**Selected Dynamics:**")
+                for dynamic, selected in results['analysis_config']['dynamics_selection'].items():
+                    if selected:
+                        emoji = {"financial_capability": "💰", "financial_hardship": "⚠️", 
+                                "gambling_behavior": "🎰", "demographics": "👥"}.get(dynamic, "📊")
+                        st.write(f"  {emoji} {dynamic.replace('_', ' ').title()}")
+                
+                # Segmentation overview
+                if results.get('advanced_segmentation'):
+                    st.write("**Segmentation Summary:**")
+                    for dynamic, seg_data in results['advanced_segmentation'].items():
+                        if 'error' not in seg_data:
+                            st.write(f"**{dynamic.replace('_', ' ').title()}:**")
+                            for segment, count in seg_data['segment_counts'].items():
+                                st.write(f"  • {segment}: {count} customers")
+                        else:
+                            st.error(f"Error in {dynamic}: {seg_data['error']}")
+            
+            else:
+                # Standard segmentation results overview
+                if 'segmentation_results' in results:
+                    st.subheader("🎯 Segmentation Results")
+                    seg_results = results['segmentation_results']
+                    
+                    for model_name, model_results in seg_results.items():
+                        with st.expander(f"📊 {model_name.replace('_', ' ').title()} Results"):
+                            if isinstance(model_results, dict) and 'message' not in model_results:
+                                st.json(model_results)
+                            else:
+                                st.write(model_results)
+        
+        if is_advanced:
+            # Advanced analysis tabs
+            with tab2:
+                st.subheader("🔬 Individual Dynamic Segments")
+                
+                if results.get('advanced_segmentation'):
+                    for dynamic, seg_data in results['advanced_segmentation'].items():
+                        with st.expander(f"📊 {dynamic.replace('_', ' ').title()} Segmentation", expanded=True):
+                            if 'error' not in seg_data:
+                                st.write(f"**Features Used:** {', '.join(seg_data['features_used'])}")
+                                
+                                # Segment distribution
+                                st.write("**Segment Distribution:**")
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    for segment, count in seg_data['segment_counts'].items():
+                                        percentage = (count / sum(seg_data['segment_counts'].values())) * 100
+                                        st.write(f"• **{segment}:** {count} customers ({percentage:.1f}%)")
+                                
+                                with col2:
+                                    # Create a simple bar chart
+                                    import matplotlib.pyplot as plt
+                                    fig, ax = plt.subplots(figsize=(8, 4))
+                                    segments = list(seg_data['segment_counts'].keys())
+                                    counts = list(seg_data['segment_counts'].values())
+                                    ax.bar(segments, counts)
+                                    ax.set_title(f"{dynamic.replace('_', ' ').title()} Segment Distribution")
+                                    ax.tick_params(axis='x', rotation=45)
+                                    st.pyplot(fig)
+                                    plt.close()
+                            else:
+                                st.error(f"Segmentation failed: {seg_data['error']}")
+            
+            with tab3:
+                st.subheader("📊 Regression Analysis Results")
+                
+                if results.get('regression_analysis'):
+                    reg_results = results['regression_analysis']
+                    
+                    # Variable selection logic explanation
+                    if 'variable_selection_logic' in reg_results:
+                        st.write("**🧠 Variable Selection Logic:**")
+                        logic = reg_results['variable_selection_logic']
+                        st.info(logic['dependent_variables_rationale'])
+                        st.info(logic['independent_variables_rationale']) 
+                        st.info(logic['segment_variables_usage'])
+                    
+                    # Regression models
+                    st.write("**📈 Regression Models:**")
+                    for dep_var, model_data in reg_results.items():
+                        if dep_var != 'variable_selection_logic' and 'error' not in model_data:
+                            with st.expander(f"Model: {dep_var}", expanded=True):
+                                col1, col2 = st.columns(2)
+                                
+                                with col1:
+                                    st.metric("R-squared", f"{model_data['r_squared']:.3f}")
+                                    st.metric("MSE", f"{model_data['mse']:.3f}")
+                                    st.metric("N Observations", model_data['n_observations'])
+                                
+                                with col2:
+                                    st.write("**Feature Importance (Coefficients):**")
+                                    for feature, coef in model_data['feature_importance'].items():
+                                        color = "green" if coef > 0 else "red"
+                                        st.write(f"• **{feature}:** {coef:.4f}")
+                                
+                                st.write(f"**Independent Variables:** {', '.join(model_data['independent_variables'])}")
+                        elif 'error' in model_data:
+                            st.error(f"Model {dep_var} failed: {model_data['error']}")
+                else:
+                    st.info("No regression analysis performed")
+            
+            with tab4:
+                st.subheader("🎯 Dummy Variables Created")
+                
+                if results.get('dummy_variables'):
+                    st.write("**Segment Dummy Variables for Regression Analysis:**")
+                    st.write("These binary variables indicate segment membership and can be used as independent variables in regression models.")
+                    
+                    dummy_vars = results['dummy_variables']
+                    st.write(f"**Created {len(dummy_vars)} dummy variables:**")
+                    
+                    for var_name in dummy_vars.keys():
+                        segment_sum = sum(dummy_vars[var_name])
+                        total_count = len(dummy_vars[var_name])
+                        percentage = (segment_sum / total_count) * 100
+                        st.write(f"• **{var_name}:** {segment_sum} customers ({percentage:.1f}%)")
+                    
+                    # Show sample of dummy variable data
+                    with st.expander("📊 Sample Dummy Variable Data", expanded=False):
+                        import pandas as pd
+                        dummy_df = pd.DataFrame(dummy_vars)
+                        st.dataframe(dummy_df.head(10))
+                else:
+                    st.info("No dummy variables created")
+            
+            with tab5:
+                st.subheader("📥 Export Advanced Results")
+                
+                col1, col2, col3 = st.columns(3)
+                
+                with col1:
+                    if st.button("📄 Export Complete Results", use_container_width=True):
+                        json_str = json.dumps(results, indent=2, default=str)
+                        st.download_button(
+                            label="⬇️ Download JSON",
+                            data=json_str,
+                            file_name=f"advanced_analysis_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json",
+                            mime="application/json"
+                        )
+                
+                with col2:
+                    if st.button("📊 Export Segment Data", use_container_width=True) and results.get('dummy_variables'):
+                        # Create CSV with dummy variables
+                        import pandas as pd
+                        dummy_df = pd.DataFrame(results['dummy_variables'])
+                        csv_string = dummy_df.to_csv(index=False)
+                        st.download_button(
+                            label="⬇️ Download CSV",
+                            data=csv_string,
+                            file_name=f"segment_dummy_vars_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                            mime="text/csv"
+                        )
+                
+                with col3:
+                    if st.button("📈 Export Regression Results", use_container_width=True) and results.get('regression_analysis'):
+                        # Create summary of regression results
+                        reg_summary = []
+                        for dep_var, model_data in results['regression_analysis'].items():
+                            if dep_var != 'variable_selection_logic' and 'error' not in model_data:
+                                reg_summary.append({
+                                    'dependent_variable': dep_var,
+                                    'r_squared': model_data['r_squared'],
+                                    'mse': model_data['mse'],
+                                    'n_observations': model_data['n_observations'],
+                                    'n_features': len(model_data['independent_variables'])
+                                })
+                        
+                        if reg_summary:
+                            import pandas as pd
+                            reg_df = pd.DataFrame(reg_summary)
+                            csv_string = reg_df.to_csv(index=False)
+                            st.download_button(
+                                label="⬇️ Download CSV",
+                                data=csv_string,
+                                file_name=f"regression_summary_{datetime.now().strftime('%Y%m%d_%H%M%S')}.csv",
+                                mime="text/csv"
+                            )
+        
+        else:
+            # Standard analysis tabs
+            with tab2:
+                st.subheader("Detailed Analysis Results")
+                
+                # Full results in expandable sections
+                with st.expander("🔍 Complete Segmentation Results", expanded=False):
+                    st.json(results['segmentation_results'])
+                
+                with st.expander("📊 Correlation Analysis", expanded=False):
+                    if 'correlation_analysis' in results:
+                        st.json(results['correlation_analysis'])
+                    else:
+                        st.write("Correlation analysis not available")
             
             with st.expander("🔗 Cross-Model Analysis", expanded=False):
                 if 'cross_model_analysis' in results:
