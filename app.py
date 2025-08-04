@@ -798,8 +798,6 @@ def main():
                         status_text.text("🔄 Step 6/6: Finalizing Results...")
                         progress_bar.progress(100)
                         
-                        loop.close()
-                        
                         st.session_state.analysis_results = results
                         
                         progress_bar.progress(100)
